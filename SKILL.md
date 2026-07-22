@@ -1,0 +1,60 @@
+---
+name: collab-init
+user-invocable: true
+allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+argument-hint: "[프로젝트 루트 경로 (생략 시 자동 탐지)]"
+description: 프로젝트에 human-AI 협업 표준 구조("human 지시 사항 및 결과 파일 모음/" + input_by_human/ + output_from_AI/)를 생성·보수한다. 멱등적으로 동작하며, 협업 폴더 README와 요청 템플릿을 심고 프로젝트 CLAUDE.md에 운영 규칙 섹션을 주입해 이후 모든 세션이 규칙(요청↔산출물 1:1 매칭, /humanize 필수, AI 작업장 문서화)을 따르게 한다. 트리거 — "/collab-init", "협업 폴더 만들어", "협업 구조 초기화", "인간-AI 작업 폴더 세팅", 새 프로젝트에서 협업 구조가 없을 때.
+---
+
+# collab-init — human-AI 협업 폴더 표준 구조 생성
+
+프로젝트에 아래 구조를 만들고, 운영 규칙을 프로젝트 CLAUDE.md에 심는다:
+
+```
+<프로젝트 루트>/
+├── CLAUDE.md                              # collab-init 마커 섹션 주입
+└── human 지시 사항 및 결과 파일 모음/
+    ├── README.md                          # 운영 규칙
+    ├── input_by_human/
+    │   └── 000_요청_템플릿.md              # 요청 양식 (연번 제외)
+    └── output_from_AI/
+```
+
+## 핵심 원칙
+- **멱등**: 항목별로 존재 여부를 확인해 없는 것만 생성한다. 기존 파일은 절대 덮어쓰지 않는다 (예외: CLAUDE.md 마커 사이 교체 — 아래 4단계).
+- **경로 안전**: 경로에 한글·공백·`@`가 흔하다(Google Drive 등). 셸 명령의 경로는 반드시 큰따옴표로 감싸고, 파일 생성·수정은 가급적 Bash 대신 Write/Read/Edit 도구를 쓴다.
+- **조용한 오생성 금지**: 프로젝트 루트가 불확실하면 반드시 사용자에게 확인한다.
+
+## 절차
+
+### 1) 프로젝트 루트 결정
+1. 인자로 경로를 받았으면 그 경로를 루트로 사용.
+2. 없으면 cwd에서 위로 올라가며 순서대로 탐색: (a) `human 지시 사항 및 결과 파일 모음/` 존재 → (b) `.git/` 존재 → (c) `CLAUDE.md` 존재. 처음 발견된 디렉토리가 루트.
+3. 아무것도 없으면 cwd를 루트 후보로 제시하고 **AskUserQuestion으로 확인 후** 진행.
+
+### 2) 멱등 구조 생성
+아래를 개별 체크해 **없는 것만** 생성한다. 이 스킬 폴더의 `templates/`에서 복사한다:
+
+| 대상 | 원본 |
+|---|---|
+| `human 지시 사항 및 결과 파일 모음/README.md` | `templates/collab-README.md` |
+| `human 지시 사항 및 결과 파일 모음/input_by_human/000_요청_템플릿.md` | `templates/request-template.md` |
+| `human 지시 사항 및 결과 파일 모음/input_by_human/`, `output_from_AI/` 폴더 | (빈 폴더 생성) |
+
+### 3) 시퀀스 스캔
+`input_by_human/`에서 `NNN_` 형식(3자리 숫자 + `_`) 파일을 스캔한다. 000은 제외. 최대 번호 + 1이 다음 요청 번호(파일이 없으면 001). 완료 보고에 "다음 요청 번호: NNN"을 포함한다.
+
+### 4) 프로젝트 CLAUDE.md 주입 (세션 간 규칙 강제 장치)
+`templates/claude-md-section.md`의 내용(마커 포함)을 사용한다:
+- 프로젝트 루트에 `CLAUDE.md` **없음** → 마커 섹션만으로 신규 생성.
+- **있음 + 마커 없음** → 파일 끝에 마커 섹션을 append. 마커 밖 기존 내용은 절대 수정하지 않는다.
+- **있음 + 마커 있음** → `<!-- collab-init:start -->` ~ `<!-- collab-init:end -->` 사이만 최신 내용으로 교체 (규칙 버전 업그레이드 경로).
+
+### 5) 완료 보고
+- 생성한 항목 / 이미 있어 스킵한 항목 목록
+- 다음 요청 번호
+- 사용법 한 줄: "요청은 `input_by_human/NNN_제목.md`로 남기면, 결과가 `output_from_AI/NNN_제목/00_요약.md`부터 시작됩니다."
+
+## 참고
+- 폴더명은 한국어 스펙으로 고정한다(비한국어 프로젝트라도 인간 인터페이스는 동일). 산출물 언어만 프로젝트에 맞춘다.
+- 운영 규칙 전문은 `templates/collab-README.md` 참조 — 규칙을 바꿀 땐 템플릿 3종(collab-README, claude-md-section)을 함께 갱신하고 버전(v1)을 올린다.
