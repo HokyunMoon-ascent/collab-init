@@ -3,7 +3,7 @@ name: collab-init
 user-invocable: true
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 argument-hint: "[프로젝트 루트 경로 (생략 시 자동 탐지)]"
-description: 프로젝트에 human-AI 협업 표준 구조("human 지시 사항 및 결과 파일 모음/" + input_by_human/ + output_from_AI/)를 생성·보수한다. 멱등적으로 동작하며, 협업 폴더 README와 요청 템플릿을 심고 프로젝트 CLAUDE.md에 운영 규칙 섹션을 주입해 이후 모든 세션이 규칙(요청↔산출물 1:1 매칭, /humanize 필수, AI 작업장 문서화)을 따르게 한다. 트리거 — "/collab-init", "협업 폴더 만들어", "협업 구조 초기화", "인간-AI 작업 폴더 세팅", 새 프로젝트에서 협업 구조가 없을 때.
+description: 프로젝트에 human-AI 협업 표준 구조("human 지시 사항 및 결과 파일 모음/" + input_by_human/ + output_from_AI/)를 생성·보수한다. 멱등적으로 동작하며, 협업 폴더 README와 요청 템플릿을 심고 프로젝트 CLAUDE.md에 운영 규칙 섹션을 주입해 이후 모든 세션이 규칙(요청↔산출물 폴더 1:1 매칭, 번호는 쌍에 귀속, 완료 시 폴더명 자동 확정, AI 작업장 문서화)을 따르게 한다. 트리거 — "/collab-init", "협업 폴더 만들어", "협업 구조 초기화", "인간-AI 작업 폴더 세팅", 새 프로젝트에서 협업 구조가 없을 때.
 ---
 
 # collab-init — human-AI 협업 폴더 표준 구조 생성
@@ -12,12 +12,19 @@ description: 프로젝트에 human-AI 협업 표준 구조("human 지시 사항 
 
 ```
 <프로젝트 루트>/
-├── CLAUDE.md                              # collab-init 마커 섹션 주입
+├── CLAUDE.md                                   # collab-init 마커 섹션 주입
 └── human 지시 사항 및 결과 파일 모음/
-    ├── README.md                          # 운영 규칙
+    ├── README.md                               # 운영 규칙
     ├── input_by_human/
-    │   └── 000_요청_템플릿.md              # 요청 양식 (연번 제외)
+    │   ├── _요청_템플릿/                        # `_` 시작 = 연번 제외
+    │   │   └── request.md
+    │   └── 20260826_01_협업폴더-구조개선/
+    │       ├── request.md                      # 요청 진입점 (파일명 고정)
+    │       └── (참고 소스: 이미지·CSV·기존 문서)
     └── output_from_AI/
+        └── 20260826_01_협업폴더-구조개선/        # input과 글자 단위로 동일한 폴더명
+            ├── 00_요약.md                       # 산출물 진입점 (파일명 고정)
+            └── (산출물)
 ```
 
 ## 핵심 원칙
@@ -38,23 +45,30 @@ description: 프로젝트에 human-AI 협업 표준 구조("human 지시 사항 
 | 대상 | 원본 |
 |---|---|
 | `human 지시 사항 및 결과 파일 모음/README.md` | `templates/collab-README.md` |
-| `human 지시 사항 및 결과 파일 모음/input_by_human/000_요청_템플릿.md` | `templates/request-template.md` |
+| `human 지시 사항 및 결과 파일 모음/input_by_human/_요청_템플릿/request.md` | `templates/request-template.md` |
 | `human 지시 사항 및 결과 파일 모음/input_by_human/`, `output_from_AI/` 폴더 | (빈 폴더 생성) |
 
-### 3) 시퀀스 스캔
-`input_by_human/`에서 `NNN_` 형식(3자리 숫자 + `_`) 파일을 스캔한다. 000은 제외. 최대 번호 + 1이 다음 요청 번호(파일이 없으면 001). 완료 보고에 "다음 요청 번호: NNN"을 포함한다.
+### 3) 시퀀스 스캔 + 정합성 점검
+`input_by_human/`과 `output_from_AI/` **양쪽**에서 `YYYYMMDD_NN_` 형식(8자리 날짜 + `_` + 2자리 숫자 + `_`) 폴더를 스캔한다.
+
+- `_`로 시작하는 항목은 제외한다.
+- 다음 번호 = 양쪽을 통틀어 max(`NN`) + 1. 하나도 없으면 `01`.
+- **정합성 점검**: 짝이 없는 번호(input만 있거나 output만 있는 번호)를 찾아 완료 보고에 경고로 표시한다. **자동으로 고치지 않는다** — v1 잔재이거나 진행 중 작업일 수 있으므로 알리기만 한다.
+- v1 방식으로 만들어진 기존 `NNN_제목.md` 파일은 건드리지 않는다. 마이그레이션하지 않고 그대로 둔다 (신규 작업부터 새 방식 적용).
 
 ### 4) 프로젝트 CLAUDE.md 주입 (세션 간 규칙 강제 장치)
 `templates/claude-md-section.md`의 내용(마커 포함)을 사용한다:
 - 프로젝트 루트에 `CLAUDE.md` **없음** → 마커 섹션만으로 신규 생성.
 - **있음 + 마커 없음** → 파일 끝에 마커 섹션을 append. 마커 밖 기존 내용은 절대 수정하지 않는다.
-- **있음 + 마커 있음** → `<!-- collab-init:start -->` ~ `<!-- collab-init:end -->` 사이만 최신 내용으로 교체 (규칙 버전 업그레이드 경로).
+- **있음 + 마커 있음** → `<!-- collab-init:start -->` ~ `<!-- collab-init:end -->` 사이만 최신 내용으로 교체. 이것이 v1 → v2 규칙 업그레이드 경로다 (기존 파일·폴더는 무손상).
 
 ### 5) 완료 보고
 - 생성한 항목 / 이미 있어 스킵한 항목 목록
-- 다음 요청 번호
-- 사용법 한 줄: "요청은 `input_by_human/NNN_제목.md`로 남기면, 결과가 `output_from_AI/NNN_제목/00_요약.md`부터 시작됩니다."
+- 다음 요청 번호 (`NN`)
+- 정합성 경고가 있으면 짝 없는 번호 목록
+- 사용법 한 줄: "요청은 `input_by_human/<주제>/request.md`로 남기면(참고 소스는 같은 폴더에), 산출물이 같은 이름의 `output_from_AI/<주제>/00_요약.md`에 생깁니다. 완료 시 양쪽 폴더명이 `YYYYMMDD_NN_주제`로 함께 확정됩니다."
 
 ## 참고
 - 폴더명은 한국어 스펙으로 고정한다(비한국어 프로젝트라도 인간 인터페이스는 동일). 산출물 언어만 프로젝트에 맞춘다.
-- 운영 규칙 전문은 `templates/collab-README.md` 참조 — 규칙을 바꿀 땐 템플릿 3종(collab-README, claude-md-section)을 함께 갱신하고 버전(v1)을 올린다.
+- 마커 문자열 `<!-- collab-init:start/end -->`는 버전이 올라가도 바꾸지 않는다 — 기존 프로젝트의 v1 섹션을 찾아 교체해야 하기 때문.
+- 운영 규칙 전문은 `templates/collab-README.md` 참조 — 규칙을 바꿀 땐 템플릿 3종(collab-README, claude-md-section, request-template)을 함께 갱신하고 버전(v2)을 올린다.
